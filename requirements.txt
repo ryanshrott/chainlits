@@ -2,7 +2,7 @@ chainlit
 openai
 langchain
 python-dotenv
-psycopg2
+psycopg2-binary
 python-dotenv
 chromadb
 googlemaps
