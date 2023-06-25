@@ -1,0 +1,8 @@
+chainlit
+openai
+langchain
+python-dotenv
+psycopg2
+python-dotenv
+chromadb
+googlemaps
