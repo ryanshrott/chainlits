@@ -22,6 +22,7 @@ from email.mime.text import MIMEText
 import smtplib
 import requests
 import googlemaps
+from chainlit import AskUserMessage, Message, on_chat_start
 
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -252,17 +253,17 @@ conn.close()
 description=f"""SQL query used to extract info in order to answer user query. SQL query should be written using this database schema information:\n
 {database_info_string}\nTips: 
 Tip 1.The query should be returned in plain text, not in JSON. Do not use new lines characters inside the query. 
-Tip 2. Always use the LIKE operator when searching by a string in your query. For example use WHERE community_name LIKE '%Annex%' instead of WHERE community_name='Annex'. 
-Tip 3. When searching for addresses with unit numbers do like WHERE address LIKE '%318 Richmond St W%' AND address LIKE '%1105%'. 
+Tip 2. Always use the ILIKE operator when searching by a string in your query. For example use WHERE community_name ILIKE '%Annex%' instead of WHERE community_name='Annex'. 
+Tip 3. When searching for addresses with unit numbers do like WHERE address ILIKE '%318 Richmond St W%' AND address ILIKE '%1105%'. 
 Tip 4. Always limit yourself to 5 results. For example use LIMIT 5 at the end of your query. 
 Tip 5. A good deal on a home is defined as a property with a high model to list price ratio.
 Tip 6. NEVER run a SELECT * because it will return too much data. Only query columns that you need to answer the user's question. For example, if the user asks for the price of a property, you do not need to query the number of bedrooms, bathrooms, etc.
 Tip 7: This table only contains current sales data, and NO historical data. If the user asks for historical data, refer them to app.smartbids.ai for more information.
 Tip 8: To find nearby properties, you can use something like SELECT address, model_price FROM chat WHERE ST_DistanceSphere(ST_MakePoint(-79.4523143, 43.6817537), ST_MakePoint(lon, lat)) <= 500.
-Tip 9: When searching for a community like "Trinity-Bellwoords" or "Corso Italia-Davenport", just search by a single word, i.e. WHERE community_name LIKE '%Trinity%' or WHERE community_name LIKE '%Corso%' or WHERE community_name LIKE '%Annex%'
+Tip 9: When searching for a community like "Trinity-Bellwoords" or "Corso Italia-Davenport", just search by a single word, i.e. WHERE community_name ILIKE '%Trinity%' or WHERE community_name ILIKE '%Corso%' or WHERE community_name ILIKE '%Annex%'
 EXAMPLES of queries:
-"SELECT address, listing_price, bedrooms, washrooms, house_area_sqft FROM chat WHERE community_name LIKE '%Beaches%' AND house_category = 'Detached' AND bedrooms >= 4 AND house_area_sqft >= 2500 LIMIT 5"
-"SELECT address, model_price, listing_price, bedrooms, house_area_sqft FROM chat WHERE community_name LIKE '%Beaches%' AND house_category = 'Detached' AND bedrooms >= 4 AND house_area_sqft >= 2500 ORDER BY model_price/listing_price DESC LIMIT 5"
+"SELECT address, listing_price, bedrooms, washrooms, house_area_sqft FROM chat WHERE community_name ILIKE '%Beaches%' AND house_category = 'Detached' AND bedrooms >= 4 AND house_area_sqft >= 2500 LIMIT 5"
+"SELECT address, model_price, listing_price, bedrooms, house_area_sqft FROM chat WHERE community_name ILIKE '%Beaches%' AND house_category = 'Detached' AND bedrooms >= 4 AND house_area_sqft >= 2500 ORDER BY model_price/listing_price DESC LIMIT 5"
 """
 
 docstring = f"""Query the database of Canadian realestate properties currenty for sale with a SQL query. This database has NO historical data, ONLY properties currently for sale.  
@@ -284,9 +285,9 @@ query_realestate_database.__doc__ = docstring
 
 
 def send_email_to_client( subject: str, message: str, client_email: str='rshrott@gmail.com') -> str:
-    """use when the client asks to meet in person or needs to book a showing. Also use when the conversation is over, or when you need help or are stuck. You MUST first aquire the client email address before you use this tool.  Do NOT use this tool unless you have aquired the client email address.
+    """use when the client asks to meet in person or needs to book a showing. Also use when the conversation is over, or when you need help or are stuck. You MUST first aquire the client email address before you use this tool.  Do NOT use this tool unless you have aquired the client's email address.
 
-    :param client_email: The email address of the client you are currently assisting. Do NOT use an email like your-email@example.com. Use the client's email address. 
+    :param client_email: The email address of the client you are currently assisting.
     :param subject: The subject of the email
     :param message: A formal email message body addressed to the client, which summarizes the conversation with the client and their current needs. 
 
@@ -417,15 +418,38 @@ Tip 2. Prioritize collecting the client's email address and first name before yo
 Tip 3. Don't use the news tool unless the client specifically asks for current news/trends.
 """
 
+async def process_new_delta(new_delta, openai_message, content_ui_message, function_ui_message):
+    if "role" in new_delta:
+        openai_message["role"] = new_delta["role"]
+    if "content" in new_delta:
+        new_content = new_delta.get("content") or ""
+        openai_message["content"] += new_content
+        await content_ui_message.stream_token(new_content)
+    if "function_call" in new_delta:
+        if "name" in new_delta["function_call"]:
+            openai_message["function_call"] = {
+                "name": new_delta["function_call"]["name"]}
+            await content_ui_message.send()
+            function_ui_message = cl.Message(
+                author=new_delta["function_call"]["name"],
+                content="", indent=1, language="json")
+            await function_ui_message.stream_token(new_delta["function_call"]["name"])
+
+        if "arguments" in new_delta["function_call"]:
+            if "arguments" not in openai_message["function_call"]:
+                openai_message["function_call"]["arguments"] = ""
+            openai_message["function_call"]["arguments"] += new_delta["function_call"]["arguments"]
+            await function_ui_message.stream_token(new_delta["function_call"]["arguments"])
+    return openai_message, content_ui_message, function_ui_message
+
+
 @cl.on_chat_start
 def start_chat():
     cl.user_session.set(
         "message_history",
         [{"role": "system", "content": sys_msg}],
     )
-N = 25  # You can adjust this value based on your requirements
-
-
+N = 10  # You can adjust this value based on your requirements
 @cl.on_message
 async def run_conversation(user_message: str):
     message_history = cl.user_session.get("message_history")
@@ -434,28 +458,38 @@ async def run_conversation(user_message: str):
     cur_iter = 0
 
     while cur_iter < MAX_ITER:
-        response = await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo-16k-0613",
-            messages=message_history[-N:],
-            functions=functions,
-            function_call="auto",
-        )
 
-        message = response["choices"][0]["message"]
-        await cl.Message(author=message["role"], content=message["content"]).send()
-        message_history.append(message)
-        print(message_history)
-        if not message.get("function_call"):
+        # OpenAI call
+        openai_message = {"role": "", "content": ""}
+        function_ui_message = None
+        content_ui_message = cl.Message(content="")
+        async for stream_resp in await openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo-0613",
+            messages=message_history[-N:],
+            stream=True,
+            function_call="auto",
+            functions=functions,
+            temperature=0
+        ):
+
+            new_delta = stream_resp.choices[0]["delta"]
+            openai_message, content_ui_message, function_ui_message = await process_new_delta(
+                new_delta, openai_message, content_ui_message, function_ui_message)
+
+        message_history.append(openai_message)
+        if function_ui_message is not None:
+            await function_ui_message.send()
+
+        if stream_resp.choices[0]["finish_reason"] == "stop":
             break
-        
-        function_name = message["function_call"]["name"]
-        arguments = ast.literal_eval(message["function_call"]["arguments"])
-        await cl.Message(
-            author=function_name,
-            content=str(message["function_call"]),
-            language="json",
-            indent=1,
-        ).send()
+
+        elif stream_resp.choices[0]["finish_reason"] != "function_call":
+            raise ValueError(stream_resp.choices[0]["finish_reason"])
+
+        # if code arrives here, it means there is a function call
+        function_name = openai_message.get("function_call").get("name")
+        arguments = ast.literal_eval(
+            openai_message.get("function_call").get("arguments"))
 
         if function_name == "get_realestate_news":
             function_response = get_realestate_news(question=arguments.get("question"))
