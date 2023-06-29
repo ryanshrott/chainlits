@@ -73,45 +73,45 @@ def get_googlemaps_address_geocoords_info(address: str, unit_number: str='') -> 
     info = get_address_info(suggestion[0], unit_number)
     return str(info)
 
-def price_home_and_find_comparables(address: str, house_category: str='Detached',  unit_number:str='', beds:str='', baths:str='', house_sqft:str='', land_sqft:str='', use_comparables:str="false"):
+def price_home_and_find_comparables(address: str, house_category: str='Detached',  unit_number:str='', bedrooms:str='', washrooms:str='', house_area_sqft:str='', land_area:str='', use_comparables:str="false"):
     """
     Call the SmartBids.ai pricing model used to compute the model price of a home. You can also optionally find comparable properties and price them as well.    
 
     :param address: The address of the property (e.g. 123 Harvie Ave, Toronto, ON)
     :param house_category: The type/category of the property like Detached or Condo etc.. Default is detached if not specified. <<Condo, Detached, Semi, Link, Multiplex, Vacant Land, Condo Townhouse, Freehold Townhouse, Other>>
     :param unit_number: The unit number like 402 (optional)
-    :param beds: The number of bedrooms (optional)
-    :param baths: The number of bathrooms (optional)
-    :param house_sqft: The square footage of the house (optional)
-    :param land_sqft: The square footage of the land (optional)
-    :param use_comparables: Whether to use comparables or not (optional). Do NOT use unless user asks for comparables. If set to true, you MUST specify at least one of beds, baths, house_sqft, land_sqft. <<true, false>>
+    :param bedrooms: The number of bedrooms (optional)
+    :param washrooms: The number of bathrooms (optional)
+    :param house_area_sqft: The square footage of the house (optional)
+    :param land_area: The square footage of the land (optional)
+    :param use_comparables: Whether to use comparables or not (optional). Do NOT use unless user asks for comparables. If set to true, you MUST specify at least one of bedrooms, washrooms, house_area_sqft, land_area. <<true, false>>
 
     :return: Pricing information for the property
     """
     print('address', address)
     print('house_category', house_category)
     print('unit_number', unit_number)
-    print('beds', beds)
-    print('baths', baths)
-    print('house_sqft', house_sqft)
-    print('land_sqft', land_sqft)
+    print('bedrooms', bedrooms)
+    print('washrooms', washrooms)
+    print('house_area_sqft', house_area_sqft)
+    print('land_area', land_area)
     print('use_comparables', str_to_bool(use_comparables))
     headers = {
         'Authorization': os.getenv("HUGGING_FACE_API_KEY"),
         'Content-Type': "application/json"
     }
-    if(str_to_bool(use_comparables) and (beds == '' and baths == '' and house_sqft == '' and land_sqft == '')):
-        return 'You must specify at least one of beds, baths, house_sqft, land_sqft if you want to use comparables'
+    if(str_to_bool(use_comparables) and (bedrooms == '' and washrooms == '' and house_area_sqft == '' and land_area == '')):
+        return 'You must specify at least one of bedrooms, washrooms, house_area_sqft, land_sqft if you want to use comparables'
     data = [
             address,
             house_category,
             unit_number,
             str_to_bool(use_comparables),
             True,
-            beds,
-            baths,
-            house_sqft,
-            land_sqft,
+            bedrooms,
+            washrooms,
+            house_area_sqft,
+            land_area,
             '',
             {'headers': ['None'], 'data': [['None']]}
         ]
@@ -256,9 +256,14 @@ Tip 2. Always use the LIKE operator when searching by a string in your query. Fo
 Tip 3. When searching for addresses with unit numbers do like WHERE address LIKE '%318 Richmond St W%' AND address LIKE '%1105%'. 
 Tip 4. Always limit yourself to 5 results. For example use LIMIT 5 at the end of your query. 
 Tip 5. A good deal on a home is defined as a property with a high model to list price ratio.
-Tip 6. NEVER run a SELECT * FROM...Only query columns that you need to answer the user's question. For example, if the user asks for the price of a property, you do not need to query the number of bedrooms, bathrooms, etc.
+Tip 6. NEVER run a SELECT * because it will return too much data. Only query columns that you need to answer the user's question. For example, if the user asks for the price of a property, you do not need to query the number of bedrooms, bathrooms, etc.
 Tip 7: This table only contains current sales data, and NO historical data. If the user asks for historical data, refer them to app.smartbids.ai for more information.
-Tip 8: To find nearby properties, you can use something like SELECT address, model_price FROM chat WHERE ST_DistanceSphere(ST_MakePoint(-79.4523143, 43.6817537), ST_MakePoint(lon, lat)) <= 500"""
+Tip 8: To find nearby properties, you can use something like SELECT address, model_price FROM chat WHERE ST_DistanceSphere(ST_MakePoint(-79.4523143, 43.6817537), ST_MakePoint(lon, lat)) <= 500.
+Tip 9: When searching for a community like "Trinity-Bellwoords" or "Corso Italia-Davenport", just search by a single word, i.e. WHERE community_name LIKE '%Trinity%' or WHERE community_name LIKE '%Corso%' or WHERE community_name LIKE '%Annex%'
+EXAMPLES of queries:
+"SELECT address, listing_price, bedrooms, washrooms, house_area_sqft FROM chat WHERE community_name LIKE '%Beaches%' AND house_category = 'Detached' AND bedrooms >= 4 AND house_area_sqft >= 2500 LIMIT 5"
+"SELECT address, model_price, listing_price, bedrooms, house_area_sqft FROM chat WHERE community_name LIKE '%Beaches%' AND house_category = 'Detached' AND bedrooms >= 4 AND house_area_sqft >= 2500 ORDER BY model_price/listing_price DESC LIMIT 5"
+"""
 
 docstring = f"""Query the database of Canadian realestate properties currenty for sale with a SQL query. This database has NO historical data, ONLY properties currently for sale.  
 :param query: {description}
@@ -278,10 +283,10 @@ def query_realestate_database(query: str) -> str:
 query_realestate_database.__doc__ = docstring
 
 
-def send_email_to_client(client_email: str, subject: str, message: str) -> str:
-    """use when the client asks to meet in person or needs to book a showing. Also use when the conversation is over, or when you need help or are stuck. You MUST first aquire the client email address before you use this tool.  
+def send_email_to_client( subject: str, message: str, client_email: str='rshrott@gmail.com') -> str:
+    """use when the client asks to meet in person or needs to book a showing. Also use when the conversation is over, or when you need help or are stuck. You MUST first aquire the client email address before you use this tool.  Do NOT use this tool unless you have aquired the client email address.
 
-    :param client_email: The email address of the client you are currently assisting
+    :param client_email: The email address of the client you are currently assisting. Do NOT use an email like your-email@example.com. Use the client's email address. 
     :param subject: The subject of the email
     :param message: A formal email message body addressed to the client, which summarizes the conversation with the client and their current needs. 
 
@@ -329,7 +334,7 @@ def calculate_monthly_mortgage_payment(principal: float, annual_interest_rate: f
 
     return str(monthly_payment)
 
-def calculate_land_transfer_tax(property_value: float, down_payment_amount: float=0.0, region_code: str="ON", first_time_buyer: str="false", new_construction: str="false", city: str = 'Toronto') -> float:
+def calculate_land_transfer_tax(property_value: int, down_payment_amount: int=0, region_code: str="ON", first_time_buyer: str="false", new_construction: str="false", city: str = 'Toronto') -> dict:
     """Calculate the land transfer tax for a given property value, down payment amount, region code, first time buyer status, new construction status and city.
     :param property_value: The property value
     :param down_payment_amount: The down payment amount
@@ -345,8 +350,8 @@ def calculate_land_transfer_tax(property_value: float, down_payment_amount: floa
     print(property_value, down_payment_amount, region_code, first_time_buyer, new_construction, city)
     print(type(property_value), type(down_payment_amount), type(region_code), type(first_time_buyer), type(new_construction), type(city))
     payload = {
-        "propertyValue": property_value,
-        "downPaymentAmount": down_payment_amount,
+        "propertyValue": int(property_value),
+        "downPaymentAmount": int(down_payment_amount),
         "regionCode": region_code,
         "firstTimeBuyer": str_to_bool(first_time_buyer),
         "newConstruction": str_to_bool(new_construction),
@@ -392,9 +397,9 @@ functions = [
     }
 ]
 
-functions=[calculator, send_email_to_client, calculate_monthly_mortgage_payment, calculate_land_transfer_tax, price_home_and_find_comparables, get_realestate_news, query_realestate_database, get_googlemaps_address_geocoords_info]
+functions=[calculator, send_email_to_client, calculate_monthly_mortgage_payment, calculate_land_transfer_tax, price_home_and_find_comparables, get_realestate_news, query_realestate_database]
 functions = [parser.func_to_json(func) for func in functions]
-print(functions[-3])
+print(functions)
 
 sys_msg = """Your are a friendly Canadian real estate agent named Ryan Shrott working for SmartBids.ai in June 2023. You are trying to help a client buy and/or sell a property. Before you begin chatting or answering questions, you MUST collect your client's first name and email address. Always address your client by their first name. When responding to a client, always follow up with another question in order to better hone in on their desires/needs. You have access to the following tools:
 Tool 1: SQL database of curently listed properties. You do not have access to historical data. If a client asks for historical data, refer them to app.smartbids.ai for more information. 
@@ -418,7 +423,7 @@ def start_chat():
         "message_history",
         [{"role": "system", "content": sys_msg}],
     )
-N = 10  # You can adjust this value based on your requirements
+N = 25  # You can adjust this value based on your requirements
 
 
 @cl.on_message
@@ -430,7 +435,7 @@ async def run_conversation(user_message: str):
 
     while cur_iter < MAX_ITER:
         response = await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo-0613",
+            model="gpt-3.5-turbo-16k-0613",
             messages=message_history[-N:],
             functions=functions,
             function_call="auto",
@@ -464,7 +469,7 @@ async def run_conversation(user_message: str):
             )
         elif function_name == "send_email_to_client":
             function_response = send_email_to_client(
-                client_email=arguments.get("client_email"),
+                client_email=arguments.get("client_email", 'ryans664@gmail.com'),
                 subject=arguments.get("subject"),
                 message=arguments.get("message"),
             )
@@ -490,10 +495,10 @@ async def run_conversation(user_message: str):
                     address=arguments.get("address"),
                     house_category=arguments.get("house_category", 'Detached'),
                     unit_number=arguments.get("unit_number", ""),
-                    beds=arguments.get("beds", ""),
-                    baths=arguments.get("baths", ""),
-                    house_sqft=arguments.get("house_sqft", ""),
-                    land_sqft=arguments.get("land_sqft", ""),
+                    bedrooms=arguments.get("bedrooms", ""),
+                    washrooms=arguments.get("washrooms", ""),
+                    house_area_sqft=arguments.get("house_area_sqft", ""),
+                    land_area=arguments.get("land_area", ""),
                     use_comparables=arguments.get("use_comparables", "false"),
                 )
         elif function_name == "get_googlemaps_address_geocoords_info":
