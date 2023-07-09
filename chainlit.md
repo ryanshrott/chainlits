@@ -1,4 +1,4 @@
-# Welcome to Canuck Property Pal! 🏠🍁🚀💡 
+# Welcome to SmartBids.ai Virtual Realtor Chatbot! 🏠🍁🚀💡 
 ## Powered by SmartBids.ai! 
 Hello there, Future Homeowner! 👋 We're thrilled to welcome you on board. Canuck Property Pal, fueled by the intelligence of SmartBids.ai, is your state-of-the-art virtual real estate assistant designed to help you navigate the Canadian real estate market effortlessly.
 
