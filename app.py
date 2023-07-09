@@ -62,19 +62,19 @@ async def process_new_delta(new_delta, openai_message, content_ui_message, funct
 class PersonalDetails(BaseModel):
     email: Optional[str] = Field(
         None,
-        description="The email address that client associates as theirs i.e. johndoe@gmail.com"
+        description="The email address of the client. Ensure it's a real email address and spelled correctly. Never use a generic email address. Leave empty if you don't know it."
     )
     name: Optional[str] = Field(
         None,
-        description="The name of the client. Include surname if possible, i.e. John Smith."
+        description="The name of the client. Include surname if possible, i.e. John Smith. Never use a generic name. Leave empty if you don't know it."
     )
     city: Optional[str] = Field(
         None,
-        description="The name of the city where the client is looking to make a real estate transaction. Ensure it's a real city in Canada and spelled correctly. i.e. Toronto"
+        description="The name of the city where the client is looking to make a real estate transaction. Ensure it's a real city in Canada and spelled correctly. Never use a generic city. Leave empty if you don't know it."
     )
     preferred_language: Optional[str] = Field(
         None,
-        description="The language that the person prefers to communicate in, i.e. English, French, Spanish, etc."
+        description="The language that the person prefers to communicate in, i.e. English, French, Spanish, etc. Ensure it's a real language and spelled correctly. Never use a generic language. Leave empty if you don't know it."
     )
 
 def send_verification_code(subject, verification_code, to_address):
@@ -207,13 +207,13 @@ async def run_conversation(user_message: str):
             client = find_client_in_airtable(updated_details.email)
             if client:
                 cl.user_session.set('client_id', client[0]['id'])
-                if 'name' in client[0]['fields']:
+                if 'name' in client[0]['fields'] and 'name' in ask_for:
                     updated_details.name = client[0]['fields']['name']
                     ask_for.remove('name')
-                if 'city' in client[0]['fields']:
+                if 'city' in client[0]['fields'] and 'city' in ask_for:
                     updated_details.city = client[0]['fields']['city']
                     ask_for.remove('city')
-                if 'preferred_language' in client[0]['fields']:
+                if 'preferred_language' in client[0]['fields'] and 'preferred_language' in ask_for:
                     updated_details.preferred_language = client[0]['fields']['preferred_language']
                     ask_for.remove('preferred_language')
                 verified = client[0]['fields'].get('verified')

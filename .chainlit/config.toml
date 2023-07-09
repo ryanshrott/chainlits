@@ -28,9 +28,7 @@ default_expand_messages = false
 hide_cot = false
 
 # Link to your github repo. This will add a github button in the UI's header.
-# github = ""
+# github = "https://github.com/ryanshrott"
 
 [meta]
 generated_by = "0.4.101"
-
-database = "local"
