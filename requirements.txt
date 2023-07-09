@@ -6,3 +6,6 @@ psycopg2-binary
 python-dotenv
 chromadb
 googlemaps
+airtable-python-wrapper
+pydantic[dotenv]
+pydantic[email]
