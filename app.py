@@ -197,7 +197,7 @@ def update_lead_as_verified(client_id):
     airtable.update(client_id, record)
 
 
-N = 10  # You can adjust this value based on your requirements
+N = 20  # You can adjust this value based on your requirements
 @cl.on_message
 async def run_conversation(user_message: str):
     if not cl.user_session.get('lead_gathered'):
@@ -272,8 +272,8 @@ async def run_conversation(user_message: str):
         function_ui_message = None
         content_ui_message = cl.Message(content="")
         async for stream_resp in await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo-0613",
-            messages=message_history[-N:],
+            model="gpt-3.5-turbo-16k-0613",
+            messages=message_history[:2] + message_history[max(2, len(message_history) - N):],
             stream=True,
             function_call="auto",
             functions=functions,

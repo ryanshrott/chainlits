@@ -446,6 +446,9 @@ Tip 3. Don't use the news tool unless the client specifically asks for current n
 
 def handle_function_request(function_name, arguments):
     if function_name == "get_realestate_news":
+        question = arguments.get("question")
+        if not question or question=='':
+            return 'your input for question was empty'
         function_response = get_realestate_news(question=arguments.get("question"))
     elif function_name == "query_realestate_database":
         function_response = query_realestate_database(query=arguments.get("query"))
