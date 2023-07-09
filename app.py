@@ -27,7 +27,8 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional
 from airtable import Airtable
-
+import random
+import string
 MAX_ITER = 5
 
 llm = ChatOpenAI(temperature=0)
@@ -76,6 +77,21 @@ class PersonalDetails(BaseModel):
         description="The language that the person prefers to communicate in, i.e. English, French, Spanish, etc."
     )
 
+def send_verification_code(subject, verification_code, to_address):
+    print('trying to send email')
+    from_address = 'ryan@smartbids.ai'
+    password = os.getenv("EMAIL_PASS")
+    msg = MIMEMultipart()
+    msg['From'] = "SmartBids.ai - Email verification <" + from_address + ">"
+    msg['To'] = to_address
+    msg['Subject'] = subject
+    msg.attach(MIMEText(f"Your verification code is {verification_code}", 'html'))
+    server = smtplib.SMTP_SSL('mail.privateemail.com', 465)
+    server.login(from_address, password)
+    text = msg.as_string()
+    server.sendmail(from_address, to_address, text)
+    print('email sent')
+    server.quit()
 
 
 def ask_for_info(ask_for = ['name','city', 'preferred_language']):
@@ -138,6 +154,7 @@ async def start_chat():
                                 preferred_language=""))
     cl.user_session.set('lead_gathered', False)
     cl.user_session.set('new_client', False)
+    cl.user_session.set('client_verified', False)
 
 
 def ask_for_info(ask_for = ['name','city', 'preferred_language']):
@@ -171,6 +188,14 @@ def add_lead_to_airtable(details, client_id=None):
     else:
         airtable.update(client_id, record)
 
+def update_lead_as_verified(client_id):
+
+    print('Updating lead as verified in Airtable', client_id)
+    record = {
+        'verified': True
+    }
+    airtable.update(client_id, record)
+
 
 N = 10  # You can adjust this value based on your requirements
 @cl.on_message
@@ -191,6 +216,10 @@ async def run_conversation(user_message: str):
                 if 'preferred_language' in client[0]['fields']:
                     updated_details.preferred_language = client[0]['fields']['preferred_language']
                     ask_for.remove('preferred_language')
+                verified = client[0]['fields'].get('verified')
+                verified = True if verified else False
+                print('verified', verified)
+                cl.user_session.set('client_verified', client[0]['fields'].get('verified'))
             else: # it's a new client
                 cl.user_session.set('new_client', True)
         cl.user_session.set('person_details', updated_details)
@@ -200,7 +229,6 @@ async def run_conversation(user_message: str):
             ai_chat = ask_for_info(ask_for)
             await cl.Message(content=ai_chat).send()
             return
-        
         else:
             print('LEAD GATHERED!')
             add_lead_to_airtable(updated_details, cl.user_session.get('client_id'))  # Add the lead to Airtable if this is a new client only
@@ -210,15 +238,33 @@ async def run_conversation(user_message: str):
             cl.user_session.set('person_details', updated_details)
             cl.user_session.set('lead_gathered', True)
             capitalized_first_name = get_first_name_and_capitalize(updated_details.name)
-            ast_msg = f'Thanks for the info, {capitalized_first_name}. How can I help you today?'
-            message_history.append({"role": "assistant", "content": ast_msg})
+            message_history.append({"role": "assistant", "content": f'Thanks for the info, {capitalized_first_name}. How can I help you today?'})
+            if cl.user_session.get('client_verified'):
+                ast_msg = f'Thanks for the info, {capitalized_first_name}. I see that your account has been fully verified. How can I help you today?'
+            else:
+                verification_code = ''.join(random.choice(string.digits) for _ in range(3))
+                cl.user_session.set('verification_code', verification_code)
+                send_verification_code('SmartBids Verification Code', verification_code, updated_details.email)
+                cl.user_session.set('sent_code', True)
+                ast_msg = f'Thanks for the info, {capitalized_first_name}. I see that your account has not been fully verified. Please check your email for a verification code. Please paste the code here.'
             await cl.Message(content=ast_msg).send()
             return
+    if not cl.user_session.get('client_verified') and cl.user_session.get('sent_code'):
+        if user_message == cl.user_session.get('verification_code'):
+            cl.user_session.set('client_verified', True)
+            if not cl.user_session.get('client_id'):
+                cl.user_session.set('client_id', find_client_in_airtable(cl.user_session.get('person_details').email)[0]['id'])
+            update_lead_as_verified(cl.user_session.get('client_id'))
+            await cl.Message(content=f'Verification successful! How can I help you today?').send()
+            return
+        else:
+            await cl.Message(content=f'Verification failed. Please try again.').send()
+            return
+
     message_history = cl.user_session.get("message_history")
     message_history.append({"role": "user", "content": user_message})
     print(message_history[1:])
     cur_iter = 0
-
     while cur_iter < MAX_ITER:
 
         # OpenAI call
