@@ -6,7 +6,7 @@ public = true
 # The project ID (found on https://cloud.chainlit.io).
 # If provided, all the message data will be stored in the cloud.
 # The project ID is required when public is set to false.
-#id = ""
+id = "SmartBids-cYJ95OUGJi84"
 
 # Whether to enable telemetry (default: true). No personal data is collected.
 enable_telemetry = true
@@ -32,3 +32,5 @@ hide_cot = false
 
 [meta]
 generated_by = "0.4.101"
+
+database = "local"
