@@ -26,13 +26,17 @@ from langchain.prompts import ChatPromptTemplate
 from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional
-from airtable import Airtable
 import random
 import string
+from pymongo import MongoClient
+
 MAX_ITER = 5
 
 llm = ChatOpenAI(temperature=0)
-airtable = Airtable(os.environ['AIRTABLE_BASE_ID'], os.environ['AIRTABLE_TABLE_NAME'], api_key=os.environ['AIRTABLE_API_KEY'])
+client = MongoClient(os.getenv("MONGO_AUTH"))  # Make sure to set the MONGO_CONNECTION_STRING in your .env
+db = client.get_database('smartbids')  # replace 'your_database_name' with your actual database name
+clients_collection = db['leads']
+
 
 async def process_new_delta(new_delta, openai_message, content_ui_message, function_ui_message):
     if "role" in new_delta:
@@ -160,23 +164,25 @@ async def start_chat():
 def ask_for_info(ask_for = ['name','city', 'preferred_language']):
     # prompt template 1
     first_prompt = ChatPromptTemplate.from_template(
-        "Below are some things to ask the user for in a coversation way. You should only ask one question at a time even if you don't get all the info. Don't ask as a list! Don't greet the user! Don't say Hi. Explain you need to get some info. Note that you are a realtor extracting info from a client. Always prioritize gathering client email address first. \n\n \
+        "Below are some things to ask the user for in a friendly, coversation way. You should only ask one question at a time even if you don't get all the info. Don't ask as a list! Don't greet the user! Don't say Hi. Explain that you need to get some info in order to look up client account and conversation history. Always prioritize gathering client email address first. \n\n \
         ### ask_for list: {ask_for}"
     )
+    print(first_prompt)
 
     # info_gathering_chain
-    info_gathering_chain = LLMChain(llm=llm, prompt=first_prompt)
+    info_gathering_chain = LLMChain(llm=llm_random, prompt=first_prompt)
     ai_chat = info_gathering_chain.run(ask_for=ask_for)
     return ai_chat
 
 
-def find_client_in_airtable(email):
+def find_client_in_mongo(email):
     print('finding client', email)
-    client = airtable.search('email', email)
+    client = clients_collection.find_one({"email": email})
     print(client)
     return client
-def add_lead_to_airtable(details, client_id=None):
-    print('Adding/updating lead in Airtable', details)
+
+def add_lead_to_mongo(details, client_id=None):
+    print('Adding/updating lead in MongoDB', details)
     record = {
         'name': details.name,
         'email': details.email,
@@ -184,17 +190,14 @@ def add_lead_to_airtable(details, client_id=None):
         'preferred_language': details.preferred_language
     }
     if not client_id:
-        airtable.insert(record)
+        clients_collection.insert_one(record)
     else:
-        airtable.update(client_id, record)
+        clients_collection.update_one({"_id": client_id}, {"$set": record})
 
 def update_lead_as_verified(client_id):
+    print('Updating lead as verified in MongoDB', client_id)
+    clients_collection.update_one({"_id": client_id}, {"$set": {"verified": True}})
 
-    print('Updating lead as verified in Airtable', client_id)
-    record = {
-        'verified': True
-    }
-    airtable.update(client_id, record)
 
 
 N = 20  # You can adjust this value based on your requirements
@@ -204,7 +207,7 @@ async def run_conversation(user_message: str):
         person_details = cl.user_session.get('person_details')
         ask_for, updated_details = filter_response(user_message, person_details)
         if updated_details.email and not cl.user_session.get('new_client') and not cl.user_session.get('client_id'):
-            client = find_client_in_airtable(updated_details.email)
+            client = find_client_in_mongo(updated_details.email)
             if client:
                 cl.user_session.set('client_id', client[0]['id'])
                 if 'name' in client[0]['fields'] and 'name' in ask_for:
@@ -231,7 +234,7 @@ async def run_conversation(user_message: str):
             return
         else:
             print('LEAD GATHERED!')
-            add_lead_to_airtable(updated_details, cl.user_session.get('client_id'))  # Add the lead to Airtable if this is a new client only
+            add_lead_to_mongo(updated_details, cl.user_session.get('client_id'))  # Add the lead to Airtable if this is a new client only
             message_history = cl.user_session.get("message_history")
             person_details = cl.user_session.get('person_details')
             message_history.append({"role": "user", "content": f'My contact information is as follows: \n + {str(person_details)}. From now on, please only respond to me in my preferred language, which is {person_details.preferred_language}.'} )
@@ -253,7 +256,7 @@ async def run_conversation(user_message: str):
         if user_message == cl.user_session.get('verification_code'):
             cl.user_session.set('client_verified', True)
             if not cl.user_session.get('client_id'):
-                cl.user_session.set('client_id', find_client_in_airtable(cl.user_session.get('person_details').email)[0]['id'])
+                cl.user_session.set('client_id', find_client_in_mongo(cl.user_session.get('person_details').email)[0]['id'])
             update_lead_as_verified(cl.user_session.get('client_id'))
             await cl.Message(content=f'Verification successful! How can I help you today?').send()
             return
@@ -264,6 +267,7 @@ async def run_conversation(user_message: str):
     message_history = cl.user_session.get("message_history")
     message_history.append({"role": "user", "content": user_message})
     print(message_history[1:])
+    #message_history = [message for message in message_history if message["role"] != "function"]
     cur_iter = 0
     while cur_iter < MAX_ITER:
 
@@ -316,3 +320,4 @@ async def run_conversation(user_message: str):
             indent=1,
         ).send()
         cur_iter += 1
+        
