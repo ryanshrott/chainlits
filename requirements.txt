@@ -9,3 +9,4 @@ googlemaps
 airtable-python-wrapper
 pydantic[dotenv]
 pydantic[email]
+pymongo
