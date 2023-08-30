@@ -209,20 +209,20 @@ async def run_conversation(user_message: str):
         if updated_details.email and not cl.user_session.get('new_client') and not cl.user_session.get('client_id'):
             client = find_client_in_mongo(updated_details.email)
             if client:
-                cl.user_session.set('client_id', client[0]['id'])
-                if 'name' in client[0]['fields'] and 'name' in ask_for:
-                    updated_details.name = client[0]['fields']['name']
+                cl.user_session.set('client_id', client['_id'])
+                if 'name' in client and 'name' in ask_for:
+                    updated_details.name = client['name']
                     ask_for.remove('name')
-                if 'city' in client[0]['fields'] and 'city' in ask_for:
-                    updated_details.city = client[0]['fields']['city']
+                if 'city' in client and 'city' in ask_for:
+                    updated_details.city = client['city']
                     ask_for.remove('city')
-                if 'preferred_language' in client[0]['fields'] and 'preferred_language' in ask_for:
-                    updated_details.preferred_language = client[0]['fields']['preferred_language']
+                if 'preferred_language' in client and 'preferred_language' in ask_for:
+                    updated_details.preferred_language = client['preferred_language']
                     ask_for.remove('preferred_language')
-                verified = client[0]['fields'].get('verified')
+                verified = client.get('verified')
                 verified = True if verified else False
                 print('verified', verified)
-                cl.user_session.set('client_verified', client[0]['fields'].get('verified'))
+                cl.user_session.set('client_verified', client.get('verified'))
             else: # it's a new client
                 cl.user_session.set('new_client', True)
         cl.user_session.set('person_details', updated_details)
