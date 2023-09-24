@@ -101,7 +101,7 @@ def send_verification_code(subject, verification_code, to_address):
 def ask_for_info(ask_for = ['name','city', 'preferred_language']):
     # prompt template 1
     first_prompt = ChatPromptTemplate.from_template(
-        "Below are some things to ask the user for in a coversation way. You should only ask one question at a time even if you don't get all the info. Don't ask as a list! Don't greet the user! Don't say Hi. Explain you need to get some info. Note that you are a realtor extracting info from a client. If you need to gather email and phone, ask for either one of them. Prioritize collecting email address. \n\n \
+        "Below are some things to ask the user for in a coversation way. You should only ask one question at a time even if you don't get all the info. Don't ask as a list! Don't greet the user! Don't say Hi. Explain you need to get some info. Note that you are a realtor extracting info from a client. If you need to gather email and phone, ask for either one of them.\n\n \
         ### ask_for list: {ask_for}"
     )
 
@@ -256,7 +256,7 @@ async def run_conversation(user_message: str):
         if user_message == cl.user_session.get('verification_code'):
             cl.user_session.set('client_verified', True)
             if not cl.user_session.get('client_id'):
-                cl.user_session.set('client_id', find_client_in_mongo(cl.user_session.get('person_details').email)[0]['id'])
+                cl.user_session.set('client_id', find_client_in_mongo(cl.user_session.get('person_details').email)['_id'])
             update_lead_as_verified(cl.user_session.get('client_id'))
             await cl.Message(content=f'Verification successful! How can I help you today?').send()
             return
