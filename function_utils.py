@@ -32,6 +32,7 @@ from langchain.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from typing import Optional
 gmaps = googlemaps.Client(key=os.getenv("GOOGLE_KEY"))
+from news import news
 llm_random = ChatOpenAI(temperature=0.5)
 class PersonalDetails(BaseModel):
     name: Optional[str] = Field(
@@ -251,13 +252,14 @@ turbo_llm = ChatOpenAI(
     temperature=0,
     model_name='gpt-3.5-turbo-0613'
 )
+'''
 # create the chain to answer questions 
-qa_chain = RetrievalQA.from_chain_type(llm=turbo_llm, 
-                                  chain_type="stuff", 
-                                  retriever=retriever, 
-                                  return_source_documents=True)
+#qa_chain = RetrievalQA.from_chain_type(llm=turbo_llm, 
+#                                  chain_type="stuff", 
+#                                  retriever=retriever, 
+#                                  return_source_documents=True)
 
-def get_realestate_news(question : str) -> str:
+def get_realestate_news_vector_db(question : str) -> str:
     """Get the latest news about the real estate market in Canada. Only use when user asks a specific question about current news.
     :param question: ask about current real estate news
     :return: response and the sources of the information
@@ -268,7 +270,30 @@ def get_realestate_news(question : str) -> str:
     for source in llm_response["source_documents"]:
         sources.append(source.metadata['source'])
     return f"Result:\n{llm_response['result']}.\nSources:\n{sources}"
+'''
+def get_realestate_news(question : str) -> str:
+    """Get the latest news about the real estate market in Canada. Only use when user asks a specific question about current news.
+    :param question: ask about current real estate news
+    :return: response and the sources of the information
+    """
+    prompt = f'''Answer the following real estate market news question by using the news summary report below. If you can't answer based on the summary, say that you don't know and should contact a local realtor.
+    Question: {question}
+    Current News Summary:\n {news} \n
+    Answer: 
+    '''
+    # Call open ai
+    MODEL = "gpt-3.5-turbo"
+    response = openai.ChatCompletion.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
+    )
 
+    message = response['choices'][0]['message']['content']
+    return message
 
 conn_string = os.getenv("POSTGRES_URI_MODEL")
 conn = psycopg2.connect(conn_string)
