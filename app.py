@@ -202,7 +202,7 @@ async def start_chat():
 def ask_for_info(ask_for = ['name','city', 'preferred_language']):
     # prompt template 1
     first_prompt = ChatPromptTemplate.from_template(
-        "Below are some things to ask the user for in a friendly, coversation way. You should only ask one question at a time even if you don't get all the info. Don't ask as a list! Don't greet the user! Don't say Hi. Explain that you need to get some info in order to look up client account and conversation history. Always prioritize gathering client email address first. \n\n \
+        "Below are some things to ask the user for in a friendly, coversation way. You should only ask one question at a time even if you don't get all the info. Don't ask as a list! Don't greet the user! Don't say Hi. Explain that you need to get some info in order to look up client account and conversation history. Always prioritize gathering client email address if you don't already have it below. You should only ask for the following information.\n\n \
         ### ask_for list: {ask_for}"
     )
     print(first_prompt)
