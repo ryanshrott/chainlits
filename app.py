@@ -194,6 +194,35 @@ def add_lead_to_mongo(details, client_id=None):
     else:
         clients_collection.update_one({"_id": client_id}, {"$set": record})
 
+def add_lead_to_octupus(details):
+    try:                    
+        # Add user to Octupus list
+        headers = {
+            'Content-Type': 'application/json',
+        }
+
+        # Check if OCTOPUS_KEY exists in environment variables
+        api_key = os.environ['OCTUPUS_KEY']
+        # Assuming email and name are previously defined
+        split_name = details.name.split(' ')
+        data = {
+            "api_key": api_key,
+            "email_address": details.email,
+            "fields": {"Name": details.name,
+                        "FirstName": split_name[0],
+                        "City": details.city,
+                        "Language": details.preferred_language},
+            "tags": ["chatbot"],
+            "status": "SUBSCRIBED"
+        }
+
+        response = requests.post('https://emailoctopus.com/api/1.6/lists/a7f14044-54c0-11ee-bed9-57e59232c7ed/contacts', headers=headers, data=json.dumps(data))
+
+        print(response.text)
+
+    except Exception as e:
+        print(e)
+
 def update_lead_as_verified(client_id):
     print('Updating lead as verified in MongoDB', client_id)
     clients_collection.update_one({"_id": client_id}, {"$set": {"verified": True}})
@@ -235,6 +264,7 @@ async def run_conversation(user_message: str):
         else:
             print('LEAD GATHERED!')
             add_lead_to_mongo(updated_details, cl.user_session.get('client_id'))  # Add the lead to Airtable if this is a new client only
+            add_lead_to_octupus(updated_details)  # Add the lead to Octupus if this is a new client only
             message_history = cl.user_session.get("message_history")
             person_details = cl.user_session.get('person_details')
             message_history.append({"role": "user", "content": f'My contact information is as follows: \n + {str(person_details)}. From now on, please only respond to me in my preferred language, which is {person_details.preferred_language}.'} )
