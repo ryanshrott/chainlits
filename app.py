@@ -307,10 +307,10 @@ async def run_conversation(user_message: str):
         function_ui_message = None
         content_ui_message = cl.Message(content="")
         messages_model = message_history[:2] + message_history[max(2, len(message_history) - N):]
-        token_count = get_token_count("gpt-3.5-turbo-0613", messages_model, functions)
-        print('token_count', token_count)
+        #token_count = get_token_count("gpt-3.5-turbo-0613", messages_model, functions)
+        #print('token_count', token_count)
         async for stream_resp in await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo-16k-0613" if token_count > 3200 else "gpt-3.5-turbo-0613",
+            model="gpt-3.5-turbo-16k-0613",
             messages=messages_model,
             stream=True,
             function_call="auto",
