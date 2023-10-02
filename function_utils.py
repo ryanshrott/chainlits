@@ -340,7 +340,7 @@ def send_email_to_client(subject: str, message: str) -> str:
     """use when the client asks to meet in person or needs to book a showing. Also use when the conversation is over, or when you need help or are stuck.
 
     :param subject: The subject of the email
-    :param message: A formal email message body addressed to the client's first name, which summarizes the conversation with the client and their current needs. Your formal signature should be included at the end.
+    :param message: A formal email message body addressed to the clients first name, which summarizes the conversation with the client and their current needs. Your formal signature should be included at the end.
 
     :return: A message indicating whether the email was sent successfully or not.
     """
